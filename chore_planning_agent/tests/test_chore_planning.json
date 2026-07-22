@@ -1,0 +1,377 @@
+{
+  "events": [
+    {
+      "author": "user",
+      "content": {
+        "parts": [
+          {
+            "text": "Please schedule a weekly chore 'Mow the lawn' on Tuesday at 14:00 for 1 hour."
+          }
+        ],
+        "role": "user"
+      }
+    },
+    {
+      "author": "chore_planning_agent",
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "args": {},
+              "id": "kt5n9oz2",
+              "name": "get_chores"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "id": "cad62dcc-46b4-4a98-86df-5a2733f160be",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "longRunningToolIds": [],
+      "nodeInfo": {
+        "path": "chore_planning_agent@1"
+      }
+    },
+    {
+      "author": "chore_planning_agent",
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "kt5n9oz2",
+              "name": "get_chores",
+              "response": {
+                "result": "You have no saved chores in session memory."
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "id": "469e02e5-251e-4ee5-935a-e419e14fbb86",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "nodeInfo": {
+        "path": "chore_planning_agent@1"
+      }
+    },
+    {
+      "author": "chore_planning_agent",
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "args": {
+                "chore_name": "Mow the lawn",
+                "due_time": "Tuesday at 14:00, weekly, 1 hour duration",
+                "status": "pending"
+              },
+              "id": "iiodtysc",
+              "name": "save_chore"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "id": "6b7632aa-e610-470c-8f53-8fd5877fe6cf",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "longRunningToolIds": [],
+      "nodeInfo": {
+        "path": "chore_planning_agent@1"
+      }
+    },
+    {
+      "actions": {
+        "stateDelta": {
+          "chores": [
+            {
+              "chore_name": "Mow the lawn",
+              "due_time": "Tuesday at 14:00, weekly, 1 hour duration",
+              "status": "pending"
+            }
+          ]
+        }
+      },
+      "author": "chore_planning_agent",
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "iiodtysc",
+              "name": "save_chore",
+              "response": {
+                "result": "Saved chore 'Mow the lawn' with status 'pending'."
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "id": "48a71bb8-f874-467e-a056-27b49b17b08b",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "nodeInfo": {
+        "path": "chore_planning_agent@1"
+      }
+    },
+    {
+      "author": "chore_planning_agent",
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "args": {
+                "agent_name": "calendar_agent"
+              },
+              "id": "91rienks",
+              "name": "transfer_to_agent"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "id": "25a587a8-16ee-4d20-be36-8089c91bb123",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "longRunningToolIds": [],
+      "nodeInfo": {
+        "path": "chore_planning_agent@1"
+      }
+    },
+    {
+      "actions": {
+        "transferToAgent": "calendar_agent"
+      },
+      "author": "chore_planning_agent",
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "91rienks",
+              "name": "transfer_to_agent",
+              "response": {
+                "result": null
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "id": "b3860ce0-4bb5-433d-bbdb-e4f56da857ce",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "nodeInfo": {
+        "path": "chore_planning_agent@1"
+      }
+    },
+    {
+      "author": "calendar_agent",
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "args": {
+                "chore_name": "Mow the lawn",
+                "day_of_week": "Tuesday",
+                "duration": "1 hour",
+                "recurrence_rate": "weekly",
+                "time": "14:00"
+              },
+              "id": "1s0ls4f1",
+              "name": "add_chore_to_calendar"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "id": "9f69f8b0-facd-4c48-8ef2-3cea50b5734f",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "longRunningToolIds": [],
+      "nodeInfo": {
+        "path": "chore_planning_agent@1/calendar_agent@1"
+      }
+    },
+    {
+      "author": "calendar_agent",
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "args": {
+                "originalFunctionCall": {
+                  "args": {
+                    "chore_name": "Mow the lawn",
+                    "day_of_week": "Tuesday",
+                    "duration": "1 hour",
+                    "recurrence_rate": "weekly",
+                    "time": "14:00"
+                  },
+                  "id": "1s0ls4f1",
+                  "name": "add_chore_to_calendar"
+                },
+                "toolConfirmation": {
+                  "confirmed": false,
+                  "hint": "Please approve or reject the tool call add_chore_to_calendar() by responding with a FunctionResponse with an expected ToolConfirmation payload."
+                }
+              },
+              "id": "adk-8d9ad15b-15e7-4b05-aab2-8e795a89591b",
+              "name": "adk_request_confirmation"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "id": "b2165bf6-ef72-4cd4-93f7-34c8fa872f9c",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "longRunningToolIds": [
+        "adk-8d9ad15b-15e7-4b05-aab2-8e795a89591b"
+      ],
+      "nodeInfo": {
+        "path": "chore_planning_agent@1/calendar_agent@1"
+      }
+    },
+    {
+      "actions": {
+        "requestedToolConfirmations": {
+          "1s0ls4f1": {
+            "confirmed": false,
+            "hint": "Please approve or reject the tool call add_chore_to_calendar() by responding with a FunctionResponse with an expected ToolConfirmation payload."
+          }
+        },
+        "skipSummarization": true
+      },
+      "author": "calendar_agent",
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "1s0ls4f1",
+              "name": "add_chore_to_calendar",
+              "response": {
+                "error": "This tool call requires confirmation, please approve or reject."
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "id": "9b5454b5-e2b4-40f5-b88c-6b3474806467",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "nodeInfo": {
+        "path": "chore_planning_agent@1/calendar_agent@1"
+      }
+    },
+    {
+      "author": "user",
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "adk-8d9ad15b-15e7-4b05-aab2-8e795a89591b",
+              "name": "adk_request_confirmation",
+              "response": {
+                "confirmed": true,
+                "payload": {
+                  "chore_name": "Mow the lawn",
+                  "day_of_week": "Tuesday",
+                  "duration": "1 hour",
+                  "recurrence_rate": "weekly",
+                  "time": "14:00"
+                }
+              }
+            }
+          }
+        ],
+        "role": "user"
+      }
+    },
+    {
+      "author": "calendar_agent",
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "1s0ls4f1",
+              "name": "add_chore_to_calendar",
+              "response": {
+                "result": "Authentication Error: Failed to load Google credentials: Reauthentication is needed. Please run `gcloud auth application-default login` to reauthenticate."
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "id": "a0c1900c-fb15-457c-bce3-0431079d7268",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "nodeInfo": {
+        "path": "chore_planning_agent@1/calendar_agent@1"
+      }
+    },
+    {
+      "author": "calendar_agent",
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "args": {
+                "agent_name": "chore_planning_agent"
+              },
+              "id": "c471qnrj",
+              "name": "transfer_to_agent"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "id": "57243621-4ba1-43d7-a92c-e61cfa0ce573",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "longRunningToolIds": [],
+      "nodeInfo": {
+        "path": "chore_planning_agent@1/calendar_agent@1"
+      }
+    },
+    {
+      "actions": {
+        "transferToAgent": "chore_planning_agent"
+      },
+      "author": "calendar_agent",
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "c471qnrj",
+              "name": "transfer_to_agent",
+              "response": {
+                "result": null
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "id": "677a1a0d-c6fc-458d-9475-e59be6320191",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "nodeInfo": {
+        "path": "chore_planning_agent@1/calendar_agent@1"
+      }
+    },
+    {
+      "author": "chore_planning_agent",
+      "content": {
+        "parts": [
+          {
+            "text": "It looks like there was an authentication error when trying to add the chore to Google Calendar:\n\n`Authentication Error: Failed to load Google credentials: Reauthentication is needed. Please run 'gcloud auth application-default login' to reauthenticate.`\n\nPlease run the command `gcloud auth application-default login` in your terminal to reauthenticate, and then we can try scheduling the chore on your calendar again!"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "id": "8da46dc7-24f9-45d5-b3b8-2e05ee016513",
+      "invocationId": "e-dad07089-97ee-456e-8ea8-7909a0e831e7",
+      "nodeInfo": {
+        "path": "chore_planning_agent@2"
+      }
+    }
+  ]
+}

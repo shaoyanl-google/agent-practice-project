@@ -1,9 +1,34 @@
 import os
 import httpx
 import datetime
+from typing import Optional, List
+from pydantic import BaseModel, Field, ValidationError
 from google.auth import default
 from google.auth.transport.requests import Request
 from google.auth.exceptions import DefaultCredentialsError
+from .logger import StructuredLogger
+
+logger = StructuredLogger(service_name="chore-planning-agent.tools")
+
+class GoogleCalendarEventInput(BaseModel):
+    summary: str = Field(..., min_length=1)
+    start_time: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[+-]\d{2}:\d{2}|Z)?$')
+    end_time: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[+-]\d{2}:\d{2}|Z)?$')
+    description: Optional[str] = ""
+    location: Optional[str] = ""
+    recurrence: Optional[List[str]] = None
+
+class SaveChoreInput(BaseModel):
+    chore_name: str = Field(..., min_length=1)
+    status: Optional[str] = "pending"
+    due_time: Optional[str] = None
+
+class AddChoreToCalendarInput(BaseModel):
+    chore_name: str = Field(..., min_length=1)
+    day_of_week: str = Field(..., pattern=r'^(?i)(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$')
+    recurrence_rate: str = Field(..., min_length=1)
+    time: str = Field(..., pattern=r'^\d{2}:\d{2}$')
+    duration: str = Field(..., min_length=1)
 
 def add_google_calendar_event(
     summary: str,
@@ -26,6 +51,22 @@ def add_google_calendar_event(
     Returns:
         A message indicating success with the event link, or a descriptive error message.
     """
+    logger.info("validation_started", extra={"tool": "add_google_calendar_event", "summary": summary})
+    try:
+        # Validate arguments using explicit JSON schema
+        GoogleCalendarEventInput(
+            summary=summary,
+            start_time=start_time,
+            end_time=end_time,
+            description=description,
+            location=location,
+            recurrence=recurrence
+        )
+        logger.info("validation_passed", extra={"tool": "add_google_calendar_event"})
+    except ValidationError as e:
+        logger.error("validation_failed", extra={"tool": "add_google_calendar_event", "errors": e.errors()})
+        return f"Validation Error: Invalid arguments passed to 'add_google_calendar_event'. Details: {e.errors()}"
+
     # 1. Attempt to get access token from environment override
     access_token = os.environ.get("GOOGLE_CALENDAR_ACCESS_TOKEN")
     quota_project = os.environ.get("GOOGLE_CALENDAR_QUOTA_PROJECT")
@@ -113,6 +154,19 @@ def save_chore(
     Returns:
         A confirmation message.
     """
+    logger.info("validation_started", extra={"tool": "save_chore", "chore_name": chore_name})
+    try:
+        # Validate arguments using explicit JSON schema
+        SaveChoreInput(
+            chore_name=chore_name,
+            status=status,
+            due_time=due_time
+        )
+        logger.info("validation_passed", extra={"tool": "save_chore"})
+    except ValidationError as e:
+        logger.error("validation_failed", extra={"tool": "save_chore", "errors": e.errors()})
+        return f"Validation Error: Invalid arguments passed to 'save_chore'. Details: {e.errors()}"
+
     if tool_context is None:
         return "Error: ToolContext was not provided."
         
@@ -227,6 +281,21 @@ def add_chore_to_calendar(
     Returns:
         The result of scheduling the chore.
     """
+    logger.info("validation_started", extra={"tool": "add_chore_to_calendar", "chore_name": chore_name})
+    try:
+        # Validate arguments using explicit JSON schema
+        AddChoreToCalendarInput(
+            chore_name=chore_name,
+            day_of_week=day_of_week,
+            recurrence_rate=recurrence_rate,
+            time=time,
+            duration=duration
+        )
+        logger.info("validation_passed", extra={"tool": "add_chore_to_calendar"})
+    except ValidationError as e:
+        logger.error("validation_failed", extra={"tool": "add_chore_to_calendar", "errors": e.errors()})
+        return f"Validation Error: Invalid arguments passed to 'add_chore_to_calendar'. Details: {e.errors()}"
+
     try:
         # Calculate start and end times
         start_time, end_time = calculate_event_times(day_of_week, time, duration)
