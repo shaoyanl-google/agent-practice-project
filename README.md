@@ -1,112 +1,110 @@
 # ADK Skeleton Agent Project
 
-This repository contains a skeleton project for a single AI agent built using the **Agent Development Kit (ADK)** Python framework.
+This repository contains a production-grade agent application built using the **Agent Development Kit (ADK)** Python framework.
 
 ## Project Structure
 
 ```
 chore-planning-agent/
-├── .venv/                 # Python virtual environment
-├── chore_planning_agent/  # Agent definition folder
-│   ├── .env               # API Keys and local configuration
-│   ├── .gitignore         # Ignores local session cache
-│   ├── __init__.py        # Package initializer
-│   └── agent.py           # Main agent definition code
-├── run_agent.py           # Script to run the agent programmatically
-└── README.md              # This guide
+├── chore_planning_agent/  # Agent package directory
+│   ├── tests/             # Golden test cases (JSON)
+│   ├── agent.py           # Multi-agent definition and model routing
+│   ├── logger.py          # Structured JSON logging and PII redaction
+│   ├── memory.py          # Asynchronous memory compaction background task
+│   └── tools.py           # Tools, Pydantic validators, OpenTelemetry spans
+├── infra/                 # Infrastructure as Code (Terraform)
+├── run_agent.py           # CLI runner (SQLite persistence, OTEL tracer, intent capture)
+├── run_evaluation_suite.py# Automated CI/CD golden dataset evaluation script
+└── README.md              # Documentation
 ```
+
+---
 
 ## Getting Started
 
 ### 1. Prerequisites
 
-Make sure you have Python 3.10 or later installed on your system.
+- Python 3.10 or later.
+- Google Cloud CLI (`gcloud`) installed and authorized.
 
 ### 2. Activate the Virtual Environment
 
-Activate the pre-configured Python virtual environment:
-
 ```bash
-# On macOS / Linux
 source .venv/bin/activate
-
-# On Windows (Command Prompt)
-.venv\Scripts\activate.bat
-
-# On Windows (PowerShell)
-.venv\Scripts\Activate.ps1
 ```
 
-Once activated, all `pip` and python commands will run using the project-local environment where `google-adk` is installed.
+### 3. Configure local credentials
 
-### 3. Configure Gemini API Key
+Run the following command to authenticate application credentials:
 
-ADK uses the Gemini API. You must configure your Google API key to run the agent.
-
-1. Get an API key from [Google AI Studio](https://aistudio.google.com/apikey).
-2. Open `chore_planning_agent/.env` in your editor.
-3. Replace `YOUR_GEMINI_API_KEY` with your actual key:
-
-```ini
-GOOGLE_API_KEY=AIzaSy...
+```bash
+gcloud auth application-default login
 ```
 
 ---
 
-## Running the Agent
+## Multi-Agent Architecture & Routing
 
-You can interact with your agent in three different ways:
-
-### Option A: Interactive CLI
-
-Use the ADK CLI to start a chat interface directly in your terminal:
-
-```bash
-adk run chore_planning_agent
-```
-
-### Option B: Programmatic Python Script
-
-Run the helper Python script which executes the agent programmatically:
-
-```bash
-python run_agent.py
-```
-
-### Option C: Developer Web UI
-
-ADK provides a web interface for testing and interacting with your agents. Run the following command from the project root:
-
-```bash
-adk web .
-```
-
-Then open your browser and navigate to:
-👉 **[http://localhost:8000](http://localhost:8000)**
-
-*Note: In the top-left dropdown of the Web UI, select `chore_planning_agent` to start chatting.*
+The project uses a structured multi-agent pattern with routing:
+- **`chore_planning_agent`** (Coordinator): Routed to **`gemini-3.5-pro`** (large reasoning model) to handle context orchestration, policy guardrails, and session state.
+- **`calendar_agent`** (Worker): Routed to **`gemini-3.5-flash`** (lightweight execution model) to handle calendar write actions.
 
 ---
 
-## Modifying the Agent
+## Safety Guardrails & Human-in-the-Loop
 
-You can customize the agent's behavior by editing `chore_planning_agent/agent.py`.
+1. **Policy Verification Guardrail**: The coordinator executes the `verify_chore_policy` tool before saving or scheduling a chore to check for profanity, quiet hours violations (23:00 - 06:00), or duration limits (> 6 hours).
+2. **Human-in-the-Loop (HITL) Gate**: Calendar write tools require confirmation (`require_confirmation=True`). The runner intercepts writes and requests user permission at the terminal (`y/n`) before executing the write.
 
-For example, to give your agent a system instruction and a custom tool:
+---
+
+## Observability & Privacy
+
+1. **Structured JSON Logging**: Logs are written as single-line JSON items for easy parsing by centralized logging stacks (e.g. Cloud Logging, Datadog).
+2. **PII and Secret Redaction**: The logger detects and redacts emails, phone numbers, and Google API OAuth access tokens (`ya29...`) recursively from messages and attributes.
+3. **OpenTelemetry Distributed Tracing**: Tracer spans are exported to console during execution, capturing span scopes for user query turns and individual tool calls.
+
+---
+
+## Context, Memory & Persistence
+
+1. **ACID Persistence**: Session history is persisted inside a robust SQLite relational database (`sessions.db`) instead of transient JSON files.
+2. **Background Memory Consolidation**: To prevent UI blocking, memory compaction is offloaded to a background task using `asyncio.create_task` at the end of every turn, summarizing long histories using Gemini.
+
+---
+
+## Infrastructure & Production Best Practices
+
+### 1. Secret Manager Injection
+To securely load API keys in production (rather than local `.env` files), the agent uses Secret Manager.
+Add this Python block to load the API key at runtime:
 
 ```python
-from google.adk import Agent
+from google.cloud import secretmanager
 
-# Define tools as standard Python functions with type hints and docstrings
-def get_weather(location: str) -> str:
-    """Returns the weather forecast for a location."""
-    return f"The weather in {location} is sunny and 72°F."
+def get_secret(secret_id: str) -> str:
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/YOUR_PROJECT_ID/secrets/{secret_id}/versions/latest"
+    response = client.access_secret_version(name=name)
+    return response.payload.data.decode("UTF-8")
 
-root_agent = Agent(
-    model='gemini-3.5-flash',
-    name='chore-planning-agent',
-    description='A helpful assistant with weather information.',
-    instruction='Be helpful and polite. Use the weather tool when asked about the weather.',
-    tools=[get_weather]
-)
+os.environ["GOOGLE_API_KEY"] = get_secret("gemini-api-key")
 ```
+
+### 2. Infrastructure as Code (IaC)
+A Terraform template is available under `infra/` to provision Google Cloud project resources (Calendar API, Secret Manager, IAM roles/service accounts).
+To initialize:
+
+```bash
+cd infra
+terraform init
+terraform plan -var="project_id=YOUR_PROJECT_ID"
+```
+
+### 3. Automated CI/CD Evaluation Suite
+To run the automated agent validation suite against the golden dataset, run:
+
+```bash
+python run_evaluation_suite.py
+```
+This runs the full multi-agent, validation, and confirmation lifecycle, asserting that all required security guardrails and tool loops are executed correctly.

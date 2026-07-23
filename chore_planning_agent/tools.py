@@ -7,8 +7,25 @@ from google.auth import default
 from google.auth.transport.requests import Request
 from google.auth.exceptions import DefaultCredentialsError
 from .logger import StructuredLogger
+from opentelemetry import trace
+from functools import wraps
 
 logger = StructuredLogger(service_name="chore-planning-agent.tools")
+tracer = trace.get_tracer("chore-planning-agent.tools")
+
+def trace_tool(span_name: str):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            with tracer.start_as_current_span(span_name) as span:
+                for k, v in kwargs.items():
+                    if k in ("summary", "chore_name"):
+                        span.set_attribute(k, logger.redact_pii(str(v)))
+                    elif k != "tool_context":
+                        span.set_attribute(k, str(v))
+                return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 class GoogleCalendarEventInput(BaseModel):
     summary: str = Field(..., min_length=1)
@@ -30,6 +47,12 @@ class AddChoreToCalendarInput(BaseModel):
     time: str = Field(..., pattern=r'^\d{2}:\d{2}$')
     duration: str = Field(..., min_length=1)
 
+class VerifyChorePolicyInput(BaseModel):
+    chore_name: str = Field(..., min_length=1)
+    time: str = Field(..., pattern=r'^\d{2}:\d{2}$')
+    duration: str = Field(..., min_length=1)
+
+@trace_tool("add_google_calendar_event")
 def add_google_calendar_event(
     summary: str,
     start_time: str,
@@ -137,6 +160,7 @@ def add_google_calendar_event(
 
 from google.adk.tools.tool_context import ToolContext
 
+@trace_tool("save_chore")
 def save_chore(
     chore_name: str,
     status: str = "pending",
@@ -262,6 +286,7 @@ def calculate_event_times(
     
     return start_dt.isoformat(), end_dt.isoformat()
 
+@trace_tool("add_chore_to_calendar")
 def add_chore_to_calendar(
     chore_name: str,
     day_of_week: str,
@@ -335,3 +360,51 @@ def add_chore_to_calendar(
         )
     except Exception as e:
         return f"Error while preparing calendar event: {e}"
+
+@trace_tool("verify_chore_policy")
+def verify_chore_policy(chore_name: str, time: str, duration: str) -> str:
+    """Verifies that the chore details satisfy scheduling safety policy guidelines.
+
+    Policy Rules:
+    1. Chore Name must not contain offensive or profane terms (e.g. 'kill', 'abuse').
+    2. Chores cannot be scheduled during quiet hours (23:00 to 06:00).
+    3. Chore duration must not exceed 6 hours.
+    """
+    logger.info("validation_started", extra={"tool": "verify_chore_policy", "chore_name": chore_name})
+    try:
+        VerifyChorePolicyInput(chore_name=chore_name, time=time, duration=duration)
+        logger.info("validation_passed", extra={"tool": "verify_chore_policy"})
+    except ValidationError as e:
+        logger.error("validation_failed", extra={"tool": "verify_chore_policy", "errors": e.errors()})
+        return f"Policy Verification Failed: Invalid inputs. Details: {e.errors()}"
+
+    # Rule 1: Blacklist of inappropriate terms
+    profanity_blacklist = ["spam", "kill", "harm", "abuse", "drugs", "illegal"]
+    name_lower = chore_name.lower()
+    for word in profanity_blacklist:
+        if word in name_lower:
+            logger.warning("policy_violation", extra={"rule": "profanity", "word": word})
+            return f"Policy Violation: Chore name '{chore_name}' contains restricted word '{word}'."
+
+    # Rule 2: Quiet hours check (23:00 to 06:00)
+    try:
+        hour, minute = map(int, time.split(":"))
+        if hour < 6 or hour >= 23:
+            logger.warning("policy_violation", extra={"rule": "quiet_hours", "time": time})
+            return f"Policy Violation: Chores cannot be scheduled during quiet hours (23:00 - 06:00). Requested time: {time}."
+    except ValueError:
+        return "Policy Violation: Invalid time format. Expected HH:MM."
+
+    # Rule 3: Duration check (max 6 hours)
+    dur_lower = duration.lower()
+    if "hour" in dur_lower:
+        try:
+            val = float(dur_lower.split("hour")[0].strip())
+            if val > 6.0:
+                logger.warning("policy_violation", extra={"rule": "max_duration", "duration": duration})
+                return f"Policy Violation: Chore duration ({val} hours) exceeds the maximum allowed 6 hours."
+        except ValueError:
+            pass
+
+    logger.info("policy_verification_success", extra={"tool": "verify_chore_policy", "chore_name": chore_name})
+    return "Passed"

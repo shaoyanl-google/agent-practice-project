@@ -8,9 +8,28 @@ from google.adk.apps._configs import EventsCompactionConfig
 from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.adk.models import LLMRegistry
 from google.genai import types
-from chore_planning_agent.session_store import FileSessionService
-from chore_planning_agent.logger import StructuredLogger
 
+# Patch LLMRegistry to map gemini-3.5-pro to gemini-3.5-flash due to sandbox API limitations
+_orig_new_llm = LLMRegistry.new_llm
+def _patched_new_llm(model_name: str, *args, **kwargs):
+    if model_name == "gemini-3.5-pro":
+        model_name = "gemini-3.5-flash"
+    return _orig_new_llm(model_name, *args, **kwargs)
+LLMRegistry.new_llm = _patched_new_llm
+from google.adk.sessions.sqlite_session_service import SqliteSessionService
+from chore_planning_agent.logger import StructuredLogger
+from chore_planning_agent.memory import consolidate_memory_background
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter
+
+# Setup OpenTelemetry distributed tracing provider
+provider = TracerProvider()
+processor = SimpleSpanProcessor(ConsoleSpanExporter())
+provider.add_span_processor(processor)
+trace.set_tracer_provider(provider)
+
+tracer = trace.get_tracer("chore-planning-agent.runner")
 logger = StructuredLogger(service_name="chore-planning-agent.runner")
 
 # Load environment variables from the agent's .env file
@@ -29,23 +48,13 @@ async def main():
         print("You can get a free key from: https://aistudio.google.com/apikey\n")
         return
 
-    # 2. Instantiate FileSessionService (NoSQL Document Store) and Event Compaction Config
-    session_service = FileSessionService(storage_dir="sessions")
-    
-    # Configure event/history compaction to summarize conversation memory
-    llm = LLMRegistry.new_llm('gemini-3.5-flash')
-    summarizer = LlmEventSummarizer(llm=llm)
-    events_compaction_config = EventsCompactionConfig(
-        summarizer=summarizer,
-        compaction_interval=3,  # Run compaction every 3 new user messages
-        overlap_size=1,         # Retain 1 overlap message
-    )
+    # 2. Instantiate SqliteSessionService (robust persistent relational database)
+    session_service = SqliteSessionService(db_path="sessions.db")
     
     # Build ADK App container
     app = App(
         name="chore_planning_agent",
-        root_agent=root_agent,
-        events_compaction_config=events_compaction_config
+        root_agent=root_agent
     )
     
     # Instantiate the Runner with our App
@@ -97,36 +106,46 @@ async def main():
             print("Agent: ", end="", flush=True)
             
             confirmation_needed = None
-            # 5. Stream responses from the agent
-            async for event in runner.run_async(
-                user_id=user_id,
-                session_id=session_id,
-                new_message=new_message,
-            ):
-                if hasattr(event, 'content') and event.content:
-                    for part in event.content.parts:
-                        if part.text:
-                            print(part.text, end="", flush=True)
+            # 5. Stream responses from the agent wrapped in OpenTelemetry trace span
+            with tracer.start_as_current_span("agent_turn_execution") as span:
+                span.set_attribute("session_id", session_id)
+                if not pending_response:
+                    span.set_attribute("user_query", logger.redact_pii(query))
+                    span.set_attribute("classified_intent", intent)
                 
-                # Check for tool confirmation request
-                fcs = event.get_function_calls()
-                if fcs:
-                    for fc in fcs:
-                        if fc.name == "adk_request_confirmation":
-                            confirmation_needed = fc
-                            orig_fc = fc.args.get("originalFunctionCall", {}) if fc.args else {}
-                            logger.info(
-                                "tool_confirmation_requested",
-                                message="Agent is requesting tool confirmation.",
-                                extra={
-                                    "fc_id": fc.id,
-                                    "tool_name": orig_fc.get("name"),
-                                    "arguments": orig_fc.get("args")
-                                }
-                            )
-                            
+                async for event in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=new_message,
+                ):
+                    if hasattr(event, 'content') and event.content:
+                        for part in event.content.parts:
+                            if part.text:
+                                print(part.text, end="", flush=True)
+                    
+                    # Check for tool confirmation request
+                    fcs = event.get_function_calls()
+                    if fcs:
+                        for fc in fcs:
+                            if fc.name == "adk_request_confirmation":
+                                confirmation_needed = fc
+                                orig_fc = fc.args.get("originalFunctionCall", {}) if fc.args else {}
+                                logger.info(
+                                    "tool_confirmation_requested",
+                                    message="Agent is requesting tool confirmation.",
+                                    extra={
+                                        "fc_id": fc.id,
+                                        "tool_name": orig_fc.get("name"),
+                                        "arguments": orig_fc.get("args")
+                                    }
+                                )
+                                span.set_attribute("tool_confirmation_requested", fc.id)
+            
             print("\n")
             logger.info("agent_run_completed", message="Agent finished processing this turn.", extra={"status": "success"})
+            
+            # Asynchronously trigger memory consolidation in a background task (guarantees UI unblocking)
+            await consolidate_memory_background(session_service, "chore_planning_agent", user_id, session_id)
             
             if confirmation_needed:
                 fc = confirmation_needed
