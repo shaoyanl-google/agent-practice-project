@@ -99,6 +99,14 @@ async def run_evaluation():
 
     try:
         for i, user_content in enumerate(user_turns):
+            # Redact PII from the user input before runner execution and memory storage
+            if user_content.parts:
+                from chore_planning_agent.logger import StructuredLogger
+                logger_instance = StructuredLogger()
+                for part in user_content.parts:
+                    if part.text:
+                        part.text = logger_instance.redact_pii(part.text)
+
             # Dynamic ID mapping for the confirmation turn
             if i == 1 and captured_confirmation_id:
                 for part in user_content.parts:

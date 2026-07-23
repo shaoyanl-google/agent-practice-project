@@ -74,6 +74,7 @@ def add_google_calendar_event(
     Returns:
         A message indicating success with the event link, or a descriptive error message.
     """
+    summary = logger.redact_pii(summary)
     logger.info("validation_started", extra={"tool": "add_google_calendar_event", "summary": summary})
     try:
         # Validate arguments using explicit JSON schema
@@ -178,6 +179,7 @@ def save_chore(
     Returns:
         A confirmation message.
     """
+    chore_name = logger.redact_pii(chore_name)
     logger.info("validation_started", extra={"tool": "save_chore", "chore_name": chore_name})
     try:
         # Validate arguments using explicit JSON schema
@@ -306,6 +308,7 @@ def add_chore_to_calendar(
     Returns:
         The result of scheduling the chore.
     """
+    chore_name = logger.redact_pii(chore_name)
     logger.info("validation_started", extra={"tool": "add_chore_to_calendar", "chore_name": chore_name})
     try:
         # Validate arguments using explicit JSON schema

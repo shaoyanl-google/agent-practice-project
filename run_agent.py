@@ -95,14 +95,17 @@ async def main():
                     print("Goodbye!")
                     break
                 
+                # Redact PII from the user query before passing it to agent or logs
+                redacted_query = logger.redact_pii(query)
+                
                 # Capture and log user intent
-                intent = logger.classify_intent(query)
+                intent = logger.classify_intent(redacted_query)
                 logger.info(
                     "user_query_received",
-                    message=f"Received query: '{query}'",
-                    extra={"query": query, "intent": intent}
+                    message=f"Received query: '{redacted_query}'",
+                    extra={"query": redacted_query, "intent": intent}
                 )
-                new_message = types.Content(role='user', parts=[types.Part(text=query)])
+                new_message = types.Content(role='user', parts=[types.Part(text=redacted_query)])
             else:
                 new_message = pending_response
                 pending_response = None
