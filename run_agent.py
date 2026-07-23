@@ -32,9 +32,13 @@ trace.set_tracer_provider(provider)
 tracer = trace.get_tracer("chore-planning-agent.runner")
 logger = StructuredLogger(service_name="chore-planning-agent.runner")
 
-# Load environment variables from the agent's .env file
+# Load environment variables from the agent's .env file (for local fallbacks)
 agent_dir = os.path.join(os.path.dirname(__file__), "chore_planning_agent")
 load_dotenv(os.path.join(agent_dir, ".env"))
+
+# Import API Key injection helper
+from chore_planning_agent.secrets import load_google_api_key
+load_google_api_key("gemini-api-key")
 
 # Import the root agent defined in the skeleton project
 from chore_planning_agent.agent import root_agent
@@ -44,7 +48,7 @@ async def main():
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key or api_key == "YOUR_GEMINI_API_KEY":
         print("WARNING: GOOGLE_API_KEY is not set or is using the placeholder value.")
-        print("Please edit the 'chore_planning_agent/.env' file and configure a valid Gemini API key from AI Studio.")
+        print("Please configure a valid Gemini API key via Google Cloud Secret Manager ('gemini-api-key') or in 'chore_planning_agent/.env'.")
         print("You can get a free key from: https://aistudio.google.com/apikey\n")
         return
 

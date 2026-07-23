@@ -12,7 +12,9 @@ chore-planning-agent/
 │   ├── logger.py          # Structured JSON logging and PII redaction
 │   ├── memory.py          # Asynchronous memory compaction background task
 │   └── tools.py           # Tools, Pydantic validators, OpenTelemetry spans
-├── infra/                 # Infrastructure as Code (Terraform)
+├── infra/                 # Infrastructure as Code (Terraform configs)
+├── main.tf                # Root IaC config
+├── variables.tf           # Root IaC variables
 ├── run_agent.py           # CLI runner (SQLite persistence, OTEL tracer, intent capture)
 ├── run_evaluation_suite.py# Automated CI/CD golden dataset evaluation script
 └── README.md              # Documentation
@@ -39,6 +41,40 @@ Run the following command to authenticate application credentials:
 
 ```bash
 gcloud auth application-default login
+```
+
+---
+
+## Agent CLI Usage
+
+ADK provides built-in CLI commands to interact with, inspect, and test the agent.
+
+### 1. Interactive Terminal Chat
+To start an interactive chat session with the coordinator agent in the terminal:
+
+```bash
+adk run chore_planning_agent
+```
+
+### 2. Developer Web UI
+To spin up a FastAPI-based browser testing UI for debugging tools and execution paths:
+
+```bash
+adk web .
+```
+Navigate to: **[http://localhost:8000](http://localhost:8000)** and select `chore_planning_agent` from the dropdown.
+
+### 3. Fixture Replay & pytest Suite
+To run pytest on the JSON test fixtures in the `tests/` directory:
+
+```bash
+adk test .
+```
+
+To update or rebuild the expected responses in the JSON test files using the live agent configuration:
+
+```bash
+adk test --rebuild .
 ```
 
 ---
@@ -76,27 +112,16 @@ The project uses a structured multi-agent pattern with routing:
 ## Infrastructure & Production Best Practices
 
 ### 1. Secret Manager Injection
-To securely load API keys in production (rather than local `.env` files), the agent uses Secret Manager.
-Add this Python block to load the API key at runtime:
-
-```python
-from google.cloud import secretmanager
-
-def get_secret(secret_id: str) -> str:
-    client = secretmanager.SecretManagerServiceClient()
-    name = f"projects/YOUR_PROJECT_ID/secrets/{secret_id}/versions/latest"
-    response = client.access_secret_version(name=name)
-    return response.payload.data.decode("UTF-8")
-
-os.environ["GOOGLE_API_KEY"] = get_secret("gemini-api-key")
-```
+The agent has a secure, built-in REST API wrapper in [secrets.py](file:///Users/shaoyanl/chore-planning-agent/chore_planning_agent/secrets.py) that interfaces with Google Cloud Secret Manager using Application Default Credentials (ADC).
+- At startup, the agent requests the payload of the secret named `gemini-api-key`.
+- If Secret Manager is authorized, it injects the secret value into the active environment under `GOOGLE_API_KEY`.
+- If Secret Manager is not configured or fails, it falls back gracefully to checking local environment variables and `chore_planning_agent/.env`.
 
 ### 2. Infrastructure as Code (IaC)
-A Terraform template is available under `infra/` to provision Google Cloud project resources (Calendar API, Secret Manager, IAM roles/service accounts).
-To initialize:
+Terraform configuration files (`main.tf` and `variables.tf`) are present in the project root to provision Google Cloud project resources (Calendar API, Secret Manager, IAM roles/service accounts).
+To initialize and check:
 
 ```bash
-cd infra
 terraform init
 terraform plan -var="project_id=YOUR_PROJECT_ID"
 ```

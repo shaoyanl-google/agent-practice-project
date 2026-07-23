@@ -9,6 +9,10 @@ from dotenv import load_dotenv
 agent_dir = os.path.dirname(__file__)
 load_dotenv(os.path.join(agent_dir, "chore_planning_agent", ".env"))
 
+# Import API Key injection helper
+from chore_planning_agent.secrets import load_google_api_key
+load_google_api_key("gemini-api-key")
+
 from google.adk.runners import Runner
 from google.adk.apps import App
 from google.genai import types
